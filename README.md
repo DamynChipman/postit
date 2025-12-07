@@ -1,6 +1,10 @@
 # postit
 
-A colorful terminal sticky-note kanban board. Create a board in your project and manage tasks from a fast, keyboard-driven TUI.
+`postit` probably stands for something like "Productivity-Oriented Sticky-Task Iteration Terminal" or "Pretentiously Overengineered Sticky-Note Task Integration Tool." Basically, it's a "sticky note" task management system in a TUI.
+
+It's how I like to get crap done...
+
+This project is 100% vibe coded!
 
 ![postit TUI](assets/postit-screenshot.png)
 
