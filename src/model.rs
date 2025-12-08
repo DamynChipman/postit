@@ -14,8 +14,6 @@ pub struct Board {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Column {
     pub id: String,
-    pub name: String,
-    pub wip_limit: Option<u32>,
     pub note_ids: Vec<NoteId>,
 }
 
@@ -38,8 +36,6 @@ pub enum BoardError {
     NoteNotFound(String),
     #[error("note {0} not present in any column")]
     NoteLocationMissing(String),
-    #[error("wip limit reached for column {0}")]
-    WipLimitReached(String),
 }
 
 impl Board {
@@ -49,26 +45,18 @@ impl Board {
             columns: vec![
                 Column {
                     id: "todo".into(),
-                    name: "To Do".into(),
-                    wip_limit: None,
                     note_ids: Vec::new(),
                 },
                 Column {
                     id: "doing".into(),
-                    name: "Doing".into(),
-                    wip_limit: None,
                     note_ids: Vec::new(),
                 },
                 Column {
                     id: "waiting".into(),
-                    name: "Waiting".into(),
-                    wip_limit: None,
                     note_ids: Vec::new(),
                 },
                 Column {
                     id: "done".into(),
-                    name: "Done".into(),
-                    wip_limit: None,
                     note_ids: Vec::new(),
                 },
             ],
@@ -90,7 +78,6 @@ impl Board {
         let target_idx = self
             .find_column_index(column_id)
             .ok_or_else(|| BoardError::ColumnNotFound(column_id.to_string()))?;
-        self.ensure_wip(target_idx)?;
         self.notes.insert(note.id.clone(), note.clone());
         self.columns[target_idx].note_ids.push(note.id.clone());
         Ok(())
@@ -110,7 +97,6 @@ impl Board {
         if src_idx == dest_idx {
             return Ok(());
         }
-        self.ensure_wip(dest_idx)?;
         self.columns[src_idx].note_ids.retain(|id| id != note_id);
         self.columns[dest_idx].note_ids.push(note_id.to_string());
         self.touch(note_id)?;
@@ -132,17 +118,6 @@ impl Board {
 
     fn touch(&mut self, note_id: &str) -> Result<(), BoardError> {
         self.update_note(note_id, |_| {})
-    }
-
-    fn ensure_wip(&self, column_idx: usize) -> Result<(), BoardError> {
-        if let Some(limit) = self.columns[column_idx].wip_limit {
-            if self.columns[column_idx].note_ids.len() as u32 >= limit {
-                return Err(BoardError::WipLimitReached(
-                    self.columns[column_idx].id.clone(),
-                ));
-            }
-        }
-        Ok(())
     }
 }
 

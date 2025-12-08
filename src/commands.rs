@@ -22,17 +22,13 @@ pub fn list(column: Option<String>) -> Result<()> {
             crate::storage::BoardScope::Global => "global",
         }
     );
-    let columns = board.columns.clone();
-    for col in columns {
+    for col in board.columns {
         if let Some(ref filter) = column {
             if &col.id != filter {
                 continue;
             }
         }
-        println!("{} [{}]", col.name, col.id);
-        if let Some(limit) = col.wip_limit {
-            println!("  WIP limit: {}", limit);
-        }
+        println!("{}", col.id);
         if col.note_ids.is_empty() {
             println!("  (empty)");
         }

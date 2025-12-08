@@ -680,12 +680,8 @@ impl App {
                 *state.offset_mut() = offset.min(notes.len().saturating_sub(1));
             }
 
-            let mut title = format!("{} [{}]", column.name, column.id);
-            if let Some(limit) = column.wip_limit {
-                title.push_str(&format!(" ({} / {})", column.note_ids.len(), limit));
-            } else {
-                title.push_str(&format!(" ({})", column.note_ids.len()));
-            }
+            let mut title = format!("{}", column.id);
+            title.push_str(&format!(" ({})", column.note_ids.len()));
 
             let block = Block::default()
                 .title(Span::styled(
@@ -826,26 +822,36 @@ impl App {
         let headings = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
         let header_spans: Vec<Span<'static>> = headings
             .iter()
-            .map(|h| Span::styled(format!("{:^6}", h), Style::default().fg(Color::Gray)))
+            .map(|h| Span::styled(format!("{:^8}", h), Style::default().fg(Color::Gray)))
             .collect();
         lines.push(Line::from(header_spans));
+        let separator_spans: Vec<Span<'static>> = (0..7)
+            .flat_map(|idx| {
+                let mut spans = vec![Span::raw("────────")];
+                if idx != 6 {
+                    spans.push(Span::raw(" "));
+                }
+                spans
+            })
+            .collect();
+        lines.push(Line::from(separator_spans));
 
         let mut day: i32 = 1 - start_offset as i32;
         while day <= days as i32 {
             let mut spans = Vec::new();
             for _ in 0..7 {
                 if day < 1 || day > days as i32 {
-                    spans.push(Span::raw("      "));
+                    spans.push(Span::raw("        "));
                 } else if let Some(date) =
                     NaiveDate::from_ymd_opt(month_start.year(), month_start.month(), day as u32)
                 {
                     let count = counts.get(&date).copied().unwrap_or(0);
-                    let mut text = if count > 0 {
+                    let content = if count > 0 {
                         format!("{:>2}({:>2})", day, count)
                     } else {
-                        format!("{:>2}     ", day)
+                        format!("{:>2}", day)
                     };
-                    text = format!("{:>6}", text);
+                    let text = format!("{:^8}", content);
                     let mut style = Style::default().fg(if count > 0 {
                         Color::LightYellow
                     } else {
@@ -1301,7 +1307,7 @@ impl App {
             .board
             .columns
             .get(target)
-            .map(|c| c.name.clone())
+            .map(|c| c.id.clone())
             .unwrap_or_default();
         self.persist(format!("Moved to {}", dest))?;
         Ok(())
@@ -1395,6 +1401,9 @@ impl App {
         let mut unassigned = Vec::new();
         let mut assigned = Vec::new();
         for (id, note) in &self.board.notes {
+            if self.is_done(id) {
+                continue;
+            }
             if note.due.is_some() {
                 assigned.push((id.as_str(), note));
             } else {
@@ -1414,6 +1423,9 @@ impl App {
             .notes
             .iter()
             .filter_map(|(id, note)| {
+                if self.is_done(id) {
+                    return None;
+                }
                 if let Some(due) = note.due {
                     if due.date_naive() == date {
                         return Some((id.as_str(), note));
@@ -1428,7 +1440,10 @@ impl App {
 
     fn timeline_due_counts(&self) -> HashMap<NaiveDate, usize> {
         let mut counts = HashMap::new();
-        for note in self.board.notes.values() {
+        for (id, note) in &self.board.notes {
+            if self.is_done(id) {
+                continue;
+            }
             if let Some(due) = note.due {
                 *counts.entry(due.date_naive()).or_insert(0) += 1;
             }
@@ -1447,6 +1462,9 @@ impl App {
     fn project_tags(&self) -> Vec<(String, Vec<(&str, &Note)>)> {
         let mut buckets: BTreeMap<String, Vec<(&str, &Note)>> = BTreeMap::new();
         for (id, note) in &self.board.notes {
+            if self.is_done(id) {
+                continue;
+            }
             if note.tags.is_empty() {
                 buckets
                     .entry("(untagged)".to_string())
@@ -1468,6 +1486,14 @@ impl App {
             tags.push((tag, notes));
         }
         tags
+    }
+
+    fn is_done(&self, note_id: &str) -> bool {
+        self.board
+            .find_note_column_index(note_id)
+            .and_then(|idx| self.board.columns.get(idx))
+            .map(|col| col.id == "done")
+            .unwrap_or(false)
     }
 
     fn ensure_timeline_bounds(&mut self) {
@@ -1861,15 +1887,10 @@ fn truncate_text(text: &str, max: usize) -> String {
     out
 }
 
-fn timeline_list_item(id: &str, note: &Note, show_due: bool) -> ListItem<'static> {
+fn timeline_list_item(_id: &str, note: &Note, show_due: bool) -> ListItem<'static> {
     let mut spans = Vec::new();
     spans.push(Span::styled(
-        format!("[{}]", id),
-        Style::default().fg(Color::DarkGray),
-    ));
-    spans.push(Span::raw(" "));
-    spans.push(Span::styled(
-        truncate_text(&note.title, 40),
+        truncate_text(&note.title, 44),
         Style::default()
             .fg(Color::White)
             .add_modifier(Modifier::BOLD),
@@ -1878,7 +1899,7 @@ fn timeline_list_item(id: &str, note: &Note, show_due: bool) -> ListItem<'static
         if let Some(due) = note.due.as_ref() {
             spans.push(Span::raw("  "));
             spans.push(Span::styled(
-                due.format("%Y-%m-%d").to_string(),
+                due.format("%Y-%m-%d@%H:%M").to_string(),
                 Style::default().fg(Color::LightYellow),
             ));
         }
